@@ -81,7 +81,7 @@ def get_vectorstore(_docs):
 # PDF 문서 로드-벡터 DB 저장-검색기-히스토리 모두 합친 Chain 구축
 @st.cache_resource
 def initialize_components(selected_model):
-    file_path = "[챗봇프로그램및실습] 부경대학교 규정집.pdf"
+    file_path = "탄소 분석.pdf"
     pages = load_and_split_pdf(file_path)
     vectorstore = get_vectorstore(pages)
     retriever = vectorstore.as_retriever()
@@ -131,7 +131,7 @@ def initialize_components(selected_model):
     return rag_chain
 
 # Streamlit UI
-st.header("국립부경대 도서관 규정 Q&A 챗봇 💬 📚")
+st.header("탄소 배출 분석 Q&A 챗봇 💬 📚")
 
 # 첫 실행 안내 메시지
 if not os.path.exists("./chroma_db"):
@@ -167,7 +167,7 @@ conversational_rag_chain = RunnableWithMessageHistory(
 
 if "messages" not in st.session_state:
     st.session_state["messages"] = [{"role": "assistant", 
-                                     "content": "국립부경대 도서관 규정에 대해 무엇이든 물어보세요!!!!!"}]
+                                     "content": "탄소 배출에 대해 무엇이든 물어보세요!!!!!"}]
 
 for msg in chat_history.messages:
     st.chat_message(msg.type).write(msg.content)
