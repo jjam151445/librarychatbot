@@ -67,9 +67,10 @@ def load_and_split_data():
 @st.cache_resource
 def create_vector_store(_docs):
     """LangChain Documents를 HuggingFace 임베딩 모델로 Chroma에 저장합니다."""
-    # 한국어 임베딩 모델 사용 (ko-sroberta-multitask)
+    # --- 수정된 부분: 안정적인 다국어 임베딩 모델로 교체했습니다. ---
+    # 교체 모델: 'sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2'
     embeddings = HuggingFaceEmbeddings(
-        model_name="Huffon/kobigbird-roberta-base-finetuned-korquad"
+        model_name="sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
     )
     
     # 기존 Chroma DB 폴더를 사용하지 않고 in-memory로 Chroma 생성
