@@ -15,11 +15,25 @@ from langchain.chains import create_retrieval_chain
 from langchain.chains.combine_documents import create_stuff_documents_chain
 from langchain.chains.history_aware_retriever import create_history_aware_retriever
 from langchain_community.chat_message_histories.streamlit import StreamlitChatMessageHistory
-# --- DocArrayInMemorySearch로 변경 ---
-from langchain_community.vectorstores import DocArrayInMemorySearch
 from langchain_core.messages import AIMessage # AIMessage import 유지
 
-# --- Chroma/SQLite 관련 코드는 제거되었습니다. ---
+# docarray 패키지 import 시도 및 오류 처리
+try:
+    # --- DocArrayInMemorySearch로 변경 ---
+    from langchain_community.vectorstores import DocArrayInMemorySearch
+except ImportError:
+    st.error(
+        "❌ **DocArrayInMemorySearch 오류 발생**\n\n"
+        "이 기능을 사용하려면 'docarray' 패키지가 필요합니다.\n\n"
+        "**해결 방법:** 실행 환경에서 다음 명령어를 사용하여 패키지를 설치해 주세요.\n"
+        "```bash\npip install \"langchain[docarray]\"\n```"
+    )
+    st.stop()
+except Exception as e:
+    # 기타 예상치 못한 오류 처리
+    st.error(f"⚠️ DocArrayInMemorySearch 로드 중 예상치 못한 오류 발생: {str(e)}")
+    st.stop()
+
 
 # Gemini API 키 설정 (Streamlit Secrets에서 가져오기)
 try:
