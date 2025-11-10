@@ -16,6 +16,7 @@ from langchain.chains.combine_documents import create_stuff_documents_chain
 from langchain.chains.history_aware_retriever import create_history_aware_retriever
 from langchain_community.chat_message_histories.streamlit import StreamlitChatMessageHistory
 from langchain_chroma import Chroma
+from langchain_core.messages import AIMessage # AIMessage import 유지
 
 # Workaround for Streamlit environment to use an in-memory SQLite for Chroma
 __import__('pysqlite3')
@@ -38,7 +39,7 @@ except Exception as e:
 
 
 # 1. 탄소 배출 데이터 문서 생성 (하드코딩으로 실제 데이터 분석 환경을 모방)
-@st.cache_resource
+# NOTE: @st.cache_resource 데코레이터를 제거했습니다. (initialize_components 함수 안으로 통합)
 def load_and_split_data():
     """탄소 배출량에 대한 핵심 사실들을 Document 객체로 생성합니다."""
     
@@ -60,11 +61,11 @@ def load_and_split_data():
         for content, source, page in data_points
     ]
     
-    st.info(f"✅ 탄소 배출 데이터 핵심 사실 {len(docs)}개를 로드했습니다.")
+    # st.info는 initialize_components에서 호출하여 캐시 오류 방지
     return docs
 
 # 2. 텍스트 청크들을 Chroma 안에 임베딩 벡터로 저장
-@st.cache_resource
+# NOTE: @st.cache_resource 데코레이터를 제거했습니다. (initialize_components 함수 안으로 통합)
 def create_vector_store(_docs):
     """LangChain Documents를 HuggingFace 임베딩 모델로 Chroma에 저장합니다."""
     # 안정적인 다국어 임베딩 모델 사용
@@ -77,12 +78,14 @@ def create_vector_store(_docs):
     return vectorstore
 
 # 3. RAG 체인 설정 및 초기화
+# NOTE: 캐싱을 이 함수에만 적용하여 벡터 저장소의 안정성을 확보합니다.
 @st.cache_resource 
 def initialize_components(selected_model):
     """LangChain RAG 체인을 초기화하고 반환합니다."""
 
-    # 1. 데이터 로드 및 벡터 저장소 생성
+    # 1. 데이터 로드 및 벡터 저장소 생성 (함수 내부에서 호출)
     data_docs = load_and_split_data()
+    st.info(f"✅ 탄소 배출 데이터 핵심 사실 {len(data_docs)}개를 로드했습니다.")
     vectorstore = create_vector_store(data_docs)
     retriever = vectorstore.as_retriever()
 
@@ -163,28 +166,24 @@ conversational_rag_chain = RunnableWithMessageHistory(
 # 초기 환영 메시지
 if not chat_history.messages:
     # add_message는 LangChain BaseMessage 객체를 추가해야 합니다.
-    # st.chat_message에서 사용할 수 있도록 LangChain 메시지 객체를 생성합니다.
-    from langchain_core.messages import AIMessage
     chat_history.add_message(
         AIMessage(content="안녕하세요! 저는 탄소 배출 데이터 분석가입니다. 2023년 글로벌 탄소 배출량 추정치에 대해 궁금한 점을 질문해 주세요. 예를 들어, '가장 많이 배출하는 나라는 어디인가요?'라고 물어볼 수 있습니다.")
     )
 
 # 채팅 기록 표시
 for msg in chat_history.messages:
-    # --- 수정된 부분: LangChain type을 Streamlit role로 안전하게 변환합니다. ---
-    # 1. msg 객체에 'type' 속성이 있는지 확인합니다.
+    # LangChain type을 Streamlit role로 안전하게 변환합니다.
     if hasattr(msg, 'type'):
         # LangChain type ('human', 'ai')을 Streamlit role ('user', 'assistant')로 변환합니다.
         role = "user" if msg.type == "human" else "assistant"
         st.chat_message(role).write(msg.content)
-    # 2. 'type' 속성이 없으면, 초기 메시지처럼 단순히 딕셔너리일 경우를 대비하여 'role'을 찾습니다.
+    # 'type' 속성이 없으면, 초기 메시지처럼 단순히 딕셔너리일 경우를 대비하여 'role'을 찾습니다.
     elif isinstance(msg, dict) and 'role' in msg:
         st.chat_message(msg['role']).write(msg.get('content', "메시지 내용을 불러올 수 없습니다."))
-    # 3. 모든 예외 상황에 대비한 최후의 처리
+    # 모든 예외 상황에 대비한 최후의 처리
     else:
         # 오류가 발생한 메시지는 "assistant"로 가정하고 내용을 문자열로 표시합니다.
         st.chat_message("assistant").write(str(msg))
-# --------------------------------------------------------------------------
 
 
 if prompt_message := st.chat_input("데이터에 대해 질문하기"):
