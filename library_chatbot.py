@@ -38,13 +38,14 @@ except Exception as e:
     pass
 
 
-# 1. 탄소 배출 데이터 문서 생성 (하드코딩으로 실제 데이터 분석 환경을 모방)
-# NOTE: @st.cache_resource 데코레이터를 제거했습니다. (initialize_components 함수 안으로 통합)
-def load_and_split_data():
-    """탄소 배출량에 대한 핵심 사실들을 Document 객체로 생성합니다."""
-    
-    # 실제 환경에서는 여기서 CSVLoader, JSONLoader 등을 사용하여 데이터를 로드하고 필요하면 분할합니다.
-    # 예시 데이터 (2023년 가상 데이터)
+# 3. RAG 체인 설정 및 초기화
+# NOTE: load_and_split_data와 create_vector_store의 로직을 이 함수 안으로 통합하여 
+# ChromaDB 초기화의 안정성을 높이고, 충돌 가능성을 줄였습니다.
+@st.cache_resource 
+def initialize_components(selected_model):
+    """LangChain RAG 체인을 초기화하고 반환합니다."""
+
+    # 1. 데이터 로드 및 Document 생성 (이전 load_and_split_data 로직)
     data_points = [
         ("2023년 전 세계 총 이산화탄소 배출량은 약 368억 톤으로 추정됩니다.", "Global Emissions Report 2023", 1),
         ("가장 많은 탄소를 배출하는 국가는 중국이며, 이는 전 세계 배출량의 약 31%를 차지합니다.", "IEA 2023 Review", 2),
@@ -56,40 +57,23 @@ def load_and_split_data():
         ("2050년 넷 제로 달성을 위해선, 전 세계적으로 연간 최소 7.6%의 배출량 감축이 필요합니다.", "UN Climate Action Plan", 8),
     ]
 
-    docs = [
+    data_docs = [
         Document(page_content=content, metadata={"source": source, "page": page})
         for content, source, page in data_points
     ]
+    st.info(f"✅ 탄소 배출 데이터 핵심 사실 {len(data_docs)}개를 로드했습니다.")
     
-    # st.info는 initialize_components에서 호출하여 캐시 오류 방지
-    return docs
-
-# 2. 텍스트 청크들을 Chroma 안에 임베딩 벡터로 저장
-# NOTE: @st.cache_resource 데코레이터를 제거했습니다. (initialize_components 함수 안으로 통합)
-def create_vector_store(_docs):
-    """LangChain Documents를 HuggingFace 임베딩 모델로 Chroma에 저장합니다."""
+    # 2. 벡터 저장소 생성 (이전 create_vector_store 로직)
     # 안정적인 다국어 임베딩 모델 사용
     embeddings = HuggingFaceEmbeddings(
         model_name="sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
     )
     
-    # 기존 Chroma DB 폴더를 사용하지 않고 in-memory로 Chroma 생성
-    vectorstore = Chroma.from_documents(documents=_docs, embedding=embeddings)
-    return vectorstore
-
-# 3. RAG 체인 설정 및 초기화
-# NOTE: 캐싱을 이 함수에만 적용하여 벡터 저장소의 안정성을 확보합니다.
-@st.cache_resource 
-def initialize_components(selected_model):
-    """LangChain RAG 체인을 초기화하고 반환합니다."""
-
-    # 1. 데이터 로드 및 벡터 저장소 생성 (함수 내부에서 호출)
-    data_docs = load_and_split_data()
-    st.info(f"✅ 탄소 배출 데이터 핵심 사실 {len(data_docs)}개를 로드했습니다.")
-    vectorstore = create_vector_store(data_docs)
+    # In-memory Chroma 생성. 전체 과정을 한 번의 캐시 내에서 완료합니다.
+    vectorstore = Chroma.from_documents(documents=data_docs, embedding=embeddings)
     retriever = vectorstore.as_retriever()
 
-    # 2. 채팅 히스토리 요약 시스템 프롬프트 (Contextualization)
+    # 3. 채팅 히스토리 요약 시스템 프롬프트 (Contextualization)
     contextualize_q_system_prompt = """주어진 대화 기록과 사용자 질문을 바탕으로, \
     대화 기록 없이도 이해할 수 있는 독립적인 질문으로 다시 작성해 주세요. \
     질문에 직접 답하지 말고, 필요한 경우에만 다시 작성하고, 그렇지 않으면 질문을 그대로 반환하세요."""
@@ -101,7 +85,7 @@ def initialize_components(selected_model):
         ]
     )
 
-    # 3. 질문-답변 시스템 프롬프트 (Data Analyst Persona)
+    # 4. 질문-답변 시스템 프롬프트 (Data Analyst Persona)
     qa_system_prompt = """당신은 **탄소 배출 데이터 분석가**입니다. \
     제공된 검색된 컨텍스트 조각(탄소 배출량 관련 데이터)을 사용하여 질문에 정확하게 답하세요. \
     데이터가 포함되지 않은 일반적인 질문에는 상식 선에서 답변할 수 있습니다. \
@@ -129,7 +113,7 @@ def initialize_components(selected_model):
         st.error(f"❌ Gemini 모델 로드 실패: {str(e)}")
         raise
 
-    # 4. RAG 체인 구성
+    # 5. RAG 체인 구성
     history_aware_retriever = create_history_aware_retriever(llm, retriever, contextualize_q_prompt)
     question_answer_chain = create_stuff_documents_chain(llm, qa_prompt)
     rag_chain = create_retrieval_chain(history_aware_retriever, question_answer_chain)
