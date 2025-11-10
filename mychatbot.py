@@ -131,7 +131,7 @@ def initialize_components(selected_model):
     return rag_chain
 
 # Streamlit UI
-st.header("국립부경대 도서관 규정 Q&A 챗봇 💬 📚")
+st.header("생활 속 탄소 배출 분석 챗봇")
 
 # 첫 실행 안내 메시지
 if not os.path.exists("./chroma_db"):
@@ -167,7 +167,7 @@ conversational_rag_chain = RunnableWithMessageHistory(
 
 if "messages" not in st.session_state:
     st.session_state["messages"] = [{"role": "assistant", 
-                                     "content": "국립부경대 도서관 규정에 대해 무엇이든 물어보세요!!!!!"}]
+                                     "content": "탄소 배에 대해 무엇이든 물어보세요!!!!!"}]
 
 for msg in chat_history.messages:
     st.chat_message(msg.type).write(msg.content)
