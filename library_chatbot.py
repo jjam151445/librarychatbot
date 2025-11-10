@@ -15,14 +15,11 @@ from langchain.chains import create_retrieval_chain
 from langchain.chains.combine_documents import create_stuff_documents_chain
 from langchain.chains.history_aware_retriever import create_history_aware_retriever
 from langchain_community.chat_message_histories.streamlit import StreamlitChatMessageHistory
-from langchain_chroma import Chroma
+# --- DocArrayInMemorySearch로 변경 ---
+from langchain_community.vectorstores import DocArrayInMemorySearch
 from langchain_core.messages import AIMessage # AIMessage import 유지
 
-# Workaround for Streamlit environment to use an in-memory SQLite for Chroma
-__import__('pysqlite3')
-import sys
-sys.modules['sqlite3'] = sys.modules.pop('pysqlite3')
-
+# --- Chroma/SQLite 관련 코드는 제거되었습니다. ---
 
 # Gemini API 키 설정 (Streamlit Secrets에서 가져오기)
 try:
@@ -39,13 +36,11 @@ except Exception as e:
 
 
 # 3. RAG 체인 설정 및 초기화
-# NOTE: load_and_split_data와 create_vector_store의 로직을 이 함수 안으로 통합하여 
-# ChromaDB 초기화의 안정성을 높이고, 충돌 가능성을 줄였습니다.
 @st.cache_resource 
 def initialize_components(selected_model):
     """LangChain RAG 체인을 초기화하고 반환합니다."""
 
-    # 1. 데이터 로드 및 Document 생성 (이전 load_and_split_data 로직)
+    # 1. 데이터 로드 및 Document 생성
     data_points = [
         ("2023년 전 세계 총 이산화탄소 배출량은 약 368억 톤으로 추정됩니다.", "Global Emissions Report 2023", 1),
         ("가장 많은 탄소를 배출하는 국가는 중국이며, 이는 전 세계 배출량의 약 31%를 차지합니다.", "IEA 2023 Review", 2),
@@ -63,14 +58,14 @@ def initialize_components(selected_model):
     ]
     st.info(f"✅ 탄소 배출 데이터 핵심 사실 {len(data_docs)}개를 로드했습니다.")
     
-    # 2. 벡터 저장소 생성 (이전 create_vector_store 로직)
+    # 2. 벡터 저장소 생성 (DocArrayInMemorySearch 사용)
     # 안정적인 다국어 임베딩 모델 사용
     embeddings = HuggingFaceEmbeddings(
         model_name="sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
     )
     
-    # In-memory Chroma 생성. 전체 과정을 한 번의 캐시 내에서 완료합니다.
-    vectorstore = Chroma.from_documents(documents=data_docs, embedding=embeddings)
+    # DocArrayInMemorySearch를 사용하여 안정적으로 인메모리 벡터 저장소를 생성합니다.
+    vectorstore = DocArrayInMemorySearch.from_documents(documents=data_docs, embedding=embeddings)
     retriever = vectorstore.as_retriever()
 
     # 3. 채팅 히스토리 요약 시스템 프롬프트 (Contextualization)
@@ -130,6 +125,7 @@ st.info(f"사용 모델: **{selected_model}**")
 
 try:
     with st.spinner("🔧 탄소 데이터 분석 챗봇 초기화 중..."):
+        # 초기화 함수가 이제 DocArrayInMemorySearch를 사용합니다.
         rag_chain = initialize_components(selected_model) 
     st.success("✅ 챗봇이 준비되었습니다! 2023년 글로벌 탄소 배출 데이터에 대해 질문해 보세요.")
 except Exception as e:
