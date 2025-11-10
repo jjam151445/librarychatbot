@@ -77,7 +77,8 @@ def create_vector_store(_docs):
     return vectorstore
 
 # 3. RAG 체인 설정 및 초기화
-@st.cache_resource(experimental_allow_widgets=True)
+# --- 수정된 부분: (experimental_allow_widgets=True) 제거 ---
+@st.cache_resource 
 def initialize_components(selected_model):
     """LangChain RAG 체인을 초기화하고 반환합니다."""
 
@@ -143,7 +144,8 @@ st.info(f"사용 모델: **{selected_model}**")
 
 try:
     with st.spinner("🔧 탄소 데이터 분석 챗봇 초기화 중..."):
-        rag_chain = initialize_components(selected_model)
+        # initialize_components 함수는 이제 인수가 없는 @st.cache_resource로 캐시됩니다.
+        rag_chain = initialize_components(selected_model) 
     st.success("✅ 챗봇이 준비되었습니다! 2023년 글로벌 탄소 배출 데이터에 대해 질문해 보세요.")
 except Exception as e:
     st.error(f"⚠️ 초기화 중 오류 발생: {str(e)}")
