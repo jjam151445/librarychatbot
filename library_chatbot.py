@@ -67,8 +67,7 @@ def load_and_split_data():
 @st.cache_resource
 def create_vector_store(_docs):
     """LangChain Documents를 HuggingFace 임베딩 모델로 Chroma에 저장합니다."""
-    # --- 수정된 부분: 안정적인 다국어 임베딩 모델로 교체했습니다. ---
-    # 교체 모델: 'sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2'
+    # 안정적인 다국어 임베딩 모델 사용
     embeddings = HuggingFaceEmbeddings(
         model_name="sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
     )
@@ -78,7 +77,6 @@ def create_vector_store(_docs):
     return vectorstore
 
 # 3. RAG 체인 설정 및 초기화
-# --- 수정된 부분: (experimental_allow_widgets=True) 제거 ---
 @st.cache_resource 
 def initialize_components(selected_model):
     """LangChain RAG 체인을 초기화하고 반환합니다."""
@@ -145,7 +143,6 @@ st.info(f"사용 모델: **{selected_model}**")
 
 try:
     with st.spinner("🔧 탄소 데이터 분석 챗봇 초기화 중..."):
-        # initialize_components 함수는 이제 인수가 없는 @st.cache_resource로 캐시됩니다.
         rag_chain = initialize_components(selected_model) 
     st.success("✅ 챗봇이 준비되었습니다! 2023년 글로벌 탄소 배출 데이터에 대해 질문해 보세요.")
 except Exception as e:
@@ -165,14 +162,29 @@ conversational_rag_chain = RunnableWithMessageHistory(
 
 # 초기 환영 메시지
 if not chat_history.messages:
+    # add_message는 LangChain BaseMessage 객체를 추가해야 합니다.
+    # st.chat_message에서 사용할 수 있도록 LangChain 메시지 객체를 생성합니다.
+    from langchain_core.messages import AIMessage
     chat_history.add_message(
-        {"role": "assistant", 
-         "content": "안녕하세요! 저는 탄소 배출 데이터 분석가입니다. 2023년 글로벌 탄소 배출량 추정치에 대해 궁금한 점을 질문해 주세요. 예를 들어, '가장 많이 배출하는 나라는 어디인가요?'라고 물어볼 수 있습니다."}
+        AIMessage(content="안녕하세요! 저는 탄소 배출 데이터 분석가입니다. 2023년 글로벌 탄소 배출량 추정치에 대해 궁금한 점을 질문해 주세요. 예를 들어, '가장 많이 배출하는 나라는 어디인가요?'라고 물어볼 수 있습니다.")
     )
 
 # 채팅 기록 표시
 for msg in chat_history.messages:
-    st.chat_message(msg.type).write(msg.content)
+    # --- 수정된 부분: LangChain type을 Streamlit role로 안전하게 변환합니다. ---
+    # 1. msg 객체에 'type' 속성이 있는지 확인합니다.
+    if hasattr(msg, 'type'):
+        # LangChain type ('human', 'ai')을 Streamlit role ('user', 'assistant')로 변환합니다.
+        role = "user" if msg.type == "human" else "assistant"
+        st.chat_message(role).write(msg.content)
+    # 2. 'type' 속성이 없으면, 초기 메시지처럼 단순히 딕셔너리일 경우를 대비하여 'role'을 찾습니다.
+    elif isinstance(msg, dict) and 'role' in msg:
+        st.chat_message(msg['role']).write(msg.get('content', "메시지 내용을 불러올 수 없습니다."))
+    # 3. 모든 예외 상황에 대비한 최후의 처리
+    else:
+        # 오류가 발생한 메시지는 "assistant"로 가정하고 내용을 문자열로 표시합니다.
+        st.chat_message("assistant").write(str(msg))
+# --------------------------------------------------------------------------
 
 
 if prompt_message := st.chat_input("데이터에 대해 질문하기"):
