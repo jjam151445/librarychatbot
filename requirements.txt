@@ -12,3 +12,4 @@ pypdf>=3.0.0
 sentence-transformers>=2.2.0
 nest-asyncio>=1.5.0
 google-api-python-client==2.138.0
+langchain[docarray]
