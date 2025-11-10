@@ -42,46 +42,7 @@ def load_and_split_pdf(file_path):
 def create_vector_store(_docs):
     text_splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=200)
     split_docs = text_splitter.split_documents(_docs)
-    st.info(f"📄 {len(split_docs)}개의 텍스트 청크로 분할했습니다.")
-
-    persist_directory = "./chroma_db"
-    st.info("🤖 임베딩 모델 로드 중... (첫 실행 시 모델 다운로드)")
-    embeddings = HuggingFaceEmbeddings(
-        model_name="jhgan/ko-sroberta-multitask",
-        model_kwargs={'device': 'cpu'},
-        encode_kwargs={'normalize_embeddings': True}
-    )
-
-    st.info("🔢 벡터 임베딩 생성 및 저장 중...")
-    vectorstore = Chroma.from_documents(
-        split_docs,
-        embeddings,
-        persist_directory=persist_directory
-    )
-    st.success("💾 벡터 데이터베이스 생성 완료!")
-    return vectorstore
-
-#만약 기존에 저장해둔 ChromaDB가 있는 경우, 이를 로드
-@st.cache_resource
-def get_vectorstore(_docs):
-    persist_directory = "./chroma_db"
-    embeddings = HuggingFaceEmbeddings(
-        model_name="jhgan/ko-sroberta-multitask",
-        model_kwargs={'device': 'cpu'},
-        encode_kwargs={'normalize_embeddings': True}
-    )
-    if os.path.exists(persist_directory):
-        return Chroma(
-            persist_directory=persist_directory,
-            embedding_function=embeddings
-        )
-    else:
-        return create_vector_store(_docs)
-    
-# PDF 문서 로드-벡터 DB 저장-검색기-히스토리 모두 합친 Chain 구축
-@st.cache_resource
-def initialize_components(selected_model):
-    file_path = "[챗봇프로그램및실습] 부경대학교 규정집.pdf"
+    st.info(f"석.pdf"
     pages = load_and_split_pdf(file_path)
     vectorstore = get_vectorstore(pages)
     retriever = vectorstore.as_retriever()
