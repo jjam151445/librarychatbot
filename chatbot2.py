@@ -187,3 +187,104 @@ if prompt_message := st.chat_input("Your question"):
             with st.expander("참고 문서 확인"):
                 for doc in response['context']:
                     st.markdown(doc.metadata['source'], help=doc.page_content)
+
+import google.generativeai as genai
+import os
+
+def main():
+    """
+    Gemini API를 사용하여 파일 업로드(이미지, PDF 등)가 가능한
+    대화형 챗봇을 실행합니다.
+    """
+    # 1. API 키 설정 (이전과 동일)
+    try:
+        api_key = os.environ["GEMINI_API_KEY"]
+    except KeyError:
+        print("환경 변수 'GEMINI_API_KEY'가 설정되지 않았습니다.")
+        api_key = my_gemini_api_key  # <--- 이 부분을 실제 API 키로 수정하세요
+
+    try:
+        genai.configure(api_key=api_key)
+    except Exception as e:
+        print(f"[오류] API 키 설정에 실패했습니다: {e}")
+        return
+
+    # 2. 모델 초기화 (이전과 동일)
+    try:
+        model = genai.GenerativeModel('gemini-2.5-flash')
+    except Exception as e:
+        print(f"[오류] 모델 로딩에 실패했습니다: {e}")
+        return
+
+    # 3. 대화 세션 시작 (이전과 동일)
+    chat = model.start_chat(history=[])
+
+    print("--- 🤖 Gemini 챗봇 (파일 업로드 가능) ---")
+    print("대화를 시작합니다. '그만'을 입력하면 종료됩니다.")
+    print("파일을 업로드하려면, 질문 전에 파일 경로를 먼저 입력하세요.")
+    print("텍스트만 질문하려면, 파일 경로 입력란에서 Enter를 누르세요.")
+    print("-" * 20)
+
+    # 4. 대화 루프
+    while True:
+        try:
+            # === [ 변경점 1: 파일 업로드 ] ===
+            uploaded_file = None # 매 턴마다 초기화
+            file_path = input("📎 업로드할 파일 경로 (없으면 Enter): ").strip()
+
+            if file_path:
+                print(f"파일 업로드 중... ({file_path})")
+                try:
+                    # 파일을 API에 업로드하고 파일 객체를 받습니다.
+                    uploaded_file = genai.upload_file(path=file_path)
+                    print(f"✅ 파일 업로드 성공!")
+                except FileNotFoundError:
+                    print(f"[오류] 파일을 찾을 수 없습니다: {file_path}")
+                    continue # 다음 루프로 이동
+                except Exception as e:
+                    print(f"[오류] 파일 업로드에 실패했습니다: {e}")
+                    print("지원되는 파일 형식(JPG, PNG, PDF 등)인지 확인하세요.")
+                    continue # 다음 루프로 이동
+
+            # 4-1. 사용자 텍스트 입력 받기
+            if uploaded_file:
+                user_input = input("You (파일에 대해 질문): ")
+            else:
+                user_input = input("You (텍스트로 질문): ")
+
+            # 4-2. 종료 조건 확인
+            if user_input.lower() == '그만':
+                print("Gemini: 🤖 대화를 종료합니다. 이용해주셔서 감사합니다.")
+                break
+
+            if not user_input.strip(): # 빈 입력은 무시
+                continue
+
+            # === [ 변경점 2: 파일과 텍스트를 함께 전송 ] ===
+
+            # 보낼 콘텐츠를 리스트로 구성합니다.
+            content_to_send = []
+
+            # 텍스트 프롬프트를 리스트에 추가합니다.
+            content_to_send.append(user_input)
+
+            # (중요) 이번 턴에 업로드된 파일이 있다면, 리스트에 추가합니다.
+            if uploaded_file:
+                content_to_send.append(uploaded_file)
+
+            # 4-3. (수정) 채팅 세션에 [텍스트] 또는 [텍스트, 파일] 리스트 전송
+            response_stream = chat.send_message(content_to_send, stream=True)
+            print("Gemini: 🤖 ", end="")
+
+            # 4-4. 스트리밍 응답 출력 (이전과 동일)
+            for chunk in response_stream:
+                print(chunk.text, end="", flush=True)
+
+            print() # 응답 완료 후 줄바꿈
+
+        except Exception as e:
+            print(f"\n\n[오류 발생]: {e}")
+            print("API 요청 중 문제가 발생했습니다. 입력을 다시 시도해주세요.")
+
+if __name__ == "__main__":
+    main()
